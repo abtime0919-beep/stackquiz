@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>쌓기나무 탐험대 - 초등 6학년 수학</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f0f7ff;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .font-jua {
+            font-family: 'Jua', sans-serif;
+        }
+        /* 카드 호버 및 선택 효과 */
+        .choice-card {
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .choice-card:hover:not(:disabled) {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 20px -5px rgba(59, 130, 246, 0.25);
+            border-color: #3b82f6;
+        }
+        .choice-card:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+        /* 피드백 팝업 애니메이션 */
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes shakeWrong {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .animate-pop {
+            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        .animate-shake {
+            animation: shakeWrong 0.4s ease-in-out;
+        }
+        /* 2D 투영도 격자 스타일 */
+        .proj-cell {
+            aspect-ratio: 1 / 1;
+            transition: background-color 0.2s;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+    <!-- 상단 헤더 (점수, 진행도, 타이머) -->
+    <header id="game-header" class="hidden bg-white shadow-sm border-b border-blue-100 sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <!-- 타이틀 및 문제 번호 -->
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 text-white px-3 py-1 rounded-xl font-jua text-lg shadow-sm">
+                    🧱 쌓기나무 탐험대
+                </div>
+                <div class="bg-blue-50 border border-blue-200 px-3.5 py-1 rounded-full font-bold text-blue-800 text-sm sm:text-base">
+                    문제 <span id="current-q-num" class="text-blue-600 text-lg">1</span> / 10
+                </div>
+            </div>
+
+            <!-- 타이머 게이지 -->
+            <div class="flex-1 max-w-md mx-2 min-w-[180px]">
+                <div class="flex justify-between text-xs font-bold mb-1">
+                    <span class="text-slate-500">⏱️ 스피드 보너스 시간</span>
+                    <span id="bonus-indicator" class="text-amber-600">+50점 가능!</span>
+                </div>
+                <div class="w-full h-3 bg-slate-200 rounded-full overflow-hidden p-0.5">
+                    <div id="timer-bar" class="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 rounded-full transition-all duration-100" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <!-- 현재 점수 -->
+            <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 px-4 py-1.5 rounded-2xl">
+                <span class="text-amber-600 font-bold text-sm">내 점수</span>
+                <span id="score-display" class="font-jua text-2xl text-amber-600">0</span>
+                <span class="text-amber-700 font-bold text-xs">점</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="flex-1 flex flex-col items-center justify-center p-4 max-w-6xl w-full mx-auto">
+
+        <!-- 1. 시작 화면 -->
+        <section id="start-screen" class="w-full max-w-2xl bg-white rounded-3xl shadow-xl border-2 border-blue-100 p-6 sm:p-10 text-center my-auto">
+            <div class="inline-block bg-blue-100 text-blue-700 font-bold px-4 py-1.5 rounded-full text-sm mb-4">
+                초등학교 6학년 2학기 수학 · 공간과 입체
+            </div>
+            <h1 class="font-jua text-4xl sm:text-5xl text-slate-800 mb-4 tracking-tight">
+                위·앞·옆에서 본 모양으로<br>
+                <span class="text-blue-600">쌓기나무</span> 찾기!
+            </h1>
+            <p class="text-slate-600 text-base sm:text-lg mb-8 leading-relaxed">
+                제시된 <strong class="text-blue-600">위, 앞, 옆(오른쪽)</strong>에서 본 모양을 잘 관찰하고,<br class="hidden sm:inline">
+                알맞은 입체도형을 4개의 보기 중에서 골라보세요!
+            </p>
+
+            <!-- 규칙 안내 카드 -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8 text-left">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                    <div class="text-2xl mb-1">🎯</div>
+                    <div class="font-bold text-slate-800 text-sm mb-1">총 10문제 도전</div>
+                    <p class="text-xs text-slate-500">3×3 모양판 위에 쌓인 다양한 입체 퍼즐을 해결해요.</p>
+                </div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200">
+                    <div class="text-2xl mb-1">⚡</div>
+                    <div class="font-bold text-amber-900 text-sm mb-1">스피드 추가 점수</div>
+                    <p class="text-xs text-amber-700">정답 기본 100점! 빨리 맞힐수록 최대 +50점 보너스!</p>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-200">
+                    <div class="text-2xl mb-1">🧭</div>
+                    <div class="font-bold text-emerald-900 text-sm mb-1">방향 확인 필수</div>
+                    <p class="text-xs text-emerald-700">'앞' 화살표 기준과 오른쪽 '옆' 방향을 꼼꼼히 살피세요.</p>
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="w-full sm:w-auto px-10 py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-jua text-2xl rounded-2xl shadow-lg shadow-blue-200 transition transform hover:-translate-y-0.5 cursor-pointer">
+                게임 시작하기 🚀
+            </button>
+        </section>
+
+        <!-- 2. 게임 플레이 화면 -->
+        <section id="play-screen" class="hidden w-full flex-1 flex flex-col lg:flex-row gap-5 items-stretch my-2">
+            
+            <!-- 좌측/상단: 위, 앞, 옆 투영도 패널 -->
+            <div class="lg:w-5/12 bg-white rounded-3xl shadow-md border border-slate-200 p-5 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="font-jua text-xl text-slate-800 flex items-center gap-2">
+                            <span class="w-2.5 h-6 bg-blue-500 rounded-full inline-block"></span>
+                            위·앞·옆에서 본 모양
+                        </h2>
+                        <span class="text-xs font-medium bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg">
+                            밑면 3 × 3 기준
+                        </span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-slate-500 mb-4">
+                        아래 세 방향에서 바라보았을 때 보이는 모양과 모두 일치하는 쌓기나무를 찾으세요.
+                    </p>
+
+                    <!-- 3개의 2D 투영도 그리드 -->
+                    <div class="grid grid-cols-3 gap-3 sm:gap-4 items-start">
+                        <!-- 위에서 본 모양 -->
+                        <div class="flex flex-col items-center bg-sky-50/70 p-3 rounded-2xl border border-sky-200">
+                            <span class="font-bold text-sky-800 text-sm mb-2 bg-sky-200/70 px-3 py-0.5 rounded-full">위</span>
+                            <div id="grid-top" class="grid grid-cols-3 gap-1 w-full max-w-[110px] bg-slate-300 p-1 rounded-lg border-2 border-slate-400">
+                                <!-- JS로 9칸 생성 -->
+                            </div>
+                            <div class="mt-2 flex items-center gap-1 text-[11px] font-bold text-rose-600">
+                                <span>▲ 앞 방향</span>
+                            </div>
+                        </div>
+
+                        <!-- 앞에서 본 모양 -->
+                        <div class="flex flex-col items-center bg-indigo-50/70 p-3 rounded-2xl border border-indigo-200">
+                            <span class="font-bold text-indigo-800 text-sm mb-2 bg-indigo-200/70 px-3 py-0.5 rounded-full">앞</span>
+                            <div id="grid-front" class="grid grid-cols-3 gap-1 w-full max-w-[110px] bg-slate-300 p-1 rounded-lg border-2 border-slate-400">
+                                <!-- JS로 9칸 생성 -->
+                            </div>
+                            <div class="mt-2 text-[11px] text-slate-500 font-medium">
+                                정면에서 본 모습
+                            </div>
+                        </div>
+
+                        <!-- 옆(오른쪽)에서 본 모양 -->
+                        <div class="flex flex-col items-center bg-teal-50/70 p-3 rounded-2xl border border-teal-200">
+                            <span class="font-bold text-teal-800 text-sm mb-2 bg-teal-200/70 px-3 py-0.5 rounded-full">옆(오른쪽)</span>
+                            <div id="grid-side" class="grid grid-cols-3 gap-1 w-full max-w-[110px] bg-slate-300 p-1 rounded-lg border-2 border-slate-400">
+                                <!-- JS로 9칸 생성 -->
+                            </div>
+                            <div class="mt-2 text-[11px] text-slate-500 font-medium">
+                                오른쪽에서 본 모습
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 방향 힌트 다이어그램 -->
+                <div class="mt-5 bg-amber-50/80 border border-amber-200/80 rounded-2xl p-3 flex items-center gap-3">
+                    <div class="bg-white p-2 rounded-xl border border-amber-200 shrink-0 text-center">
+                        <div class="text-[10px] font-bold text-slate-400">기준 방향</div>
+                        <div class="text-xs font-bold text-rose-600">↙ 앞</div>
+                        <div class="text-xs font-bold text-teal-600">옆 ↘</div>
+                    </div>
+                    <p class="text-xs text-amber-900 leading-relaxed">
+                        <strong>관찰 팁!</strong> 입체 그림의 <span class="text-rose-600 font-bold">왼쪽 아래가 '앞'</span>, <span class="text-teal-700 font-bold">오른쪽 아래가 '옆'</span>입니다. 위에서 본 모양의 아래쪽 줄이 '앞'과 맞닿아 있어요!
+                    </p>
+                </div>
+            </div>
+
+            <!-- 우측/하단: 4개의 3D 쌓기나무 선택지 -->
+            <div class="lg:w-7/12 flex flex-col">
+                <div class="grid grid-cols-2 gap-3 sm:gap-4 flex-1">
+                    <!-- 보기 1 -->
+                    <button id="choice-btn-0" onclick="selectAnswer(0)" class="choice-card relative bg-white rounded-3xl border-2 border-slate-200 p-3 flex flex-col items-center justify-between cursor-pointer overflow-hidden shadow-sm">
+                        <div class="w-full flex justify-between items-center px-1">
+                            <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-jua text-lg flex items-center justify-center">1</span>
+                            <span id="badge-0" class="hidden text-xs font-bold px-2.5 py-1 rounded-full"></span>
+                        </div>
+                        <div class="w-full flex-1 flex items-center justify-center min-h-[150px] sm:min-h-[180px]">
+                            <canvas id="canvas-0" class="w-full h-full max-h-[200px]"></canvas>
+                        </div>
+                    </button>
+
+                    <!-- 보기 2 -->
+                    <button id="choice-btn-1" onclick="selectAnswer(1)" class="choice-card relative bg-white rounded-3xl border-2 border-slate-200 p-3 flex flex-col items-center justify-between cursor-pointer overflow-hidden shadow-sm">
+                        <div class="w-full flex justify-between items-center px-1">
+                            <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-jua text-lg flex items-center justify-center">2</span>
+                            <span id="badge-1" class="hidden text-xs font-bold px-2.5 py-1 rounded-full"></span>
+                        </div>
+                        <div class="w-full flex-1 flex items-center justify-center min-h-[150px] sm:min-h-[180px]">
+                            <canvas id="canvas-1" class="w-full h-full max-h-[200px]"></canvas>
+                        </div>
+                    </button>
+
+                    <!-- 보기 3 -->
+                    <button id="choice-btn-2" onclick="selectAnswer(2)" class="choice-card relative bg-white rounded-3xl border-2 border-slate-200 p-3 flex flex-col items-center justify-between cursor-pointer overflow-hidden shadow-sm">
+                        <div class="w-full flex justify-between items-center px-1">
+                            <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-jua text-lg flex items-center justify-center">3</span>
+                            <span id="badge-2" class="hidden text-xs font-bold px-2.5 py-1 rounded-full"></span>
+                        </div>
+                        <div class="w-full flex-1 flex items-center justify-center min-h-[150px] sm:min-h-[180px]">
+                            <canvas id="canvas-2" class="w-full h-full max-h-[200px]"></canvas>
+                        </div>
+                    </button>
+
+                    <!-- 보기 4 -->
+                    <button id="choice-btn-3" onclick="selectAnswer(3)" class="choice-card relative bg-white rounded-3xl border-2 border-slate-200 p-3 flex flex-col items-center justify-between cursor-pointer overflow-hidden shadow-sm">
+                        <div class="w-full flex justify-between items-center px-1">
+                            <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-jua text-lg flex items-center justify-center">4</span>
+                            <span id="badge-3" class="hidden text-xs font-bold px-2.5 py-1 rounded-full"></span>
+                        </div>
+                        <div class="w-full flex-1 flex items-center justify-center min-h-[150px] sm:min-h-[180px]">
+                            <canvas id="canvas-3" class="w-full h-full max-h-[200px]"></canvas>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- 피드백 및 다음 문제 버튼 바 -->
+                <div id="feedback-panel" class="hidden mt-4 bg-white rounded-2xl border-2 p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 animate-pop">
+                    <div class="flex items-center gap-3 text-center sm:text-left">
+                        <div id="feedback-icon" class="w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-3xl shrink-0">
+                            ⭕
+                        </div>
+                        <div>
+                            <h3 id="feedback-title" class="font-jua text-xl">정답입니다!</h3>
+                            <p id="feedback-desc" class="text-sm text-slate-600">기본 100점 + 스피드 보너스 42점 획득!</p>
+                        </div>
+                    </div>
+                    <button id="next-btn" onclick="nextQuestion()" class="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-jua text-lg rounded-xl shadow transition cursor-pointer shrink-0">
+                        다음 문제 ➔
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. 최종 결과 화면 -->
+        <section id="result-screen" class="hidden w-full max-w-2xl bg-white rounded-3xl shadow-xl border-2 border-blue-100 p-6 sm:p-10 text-center my-auto animate-pop">
+            <div class="text-5xl mb-3" id="rank-emoji">🏆</div>
+            <div class="inline-block bg-amber-100 text-amber-800 font-bold px-4 py-1 rounded-full text-sm mb-2">
+                10문제 도전 완료!
+            </div>
+            <h2 id="rank-title" class="font-jua text-3xl sm:text-4xl text-blue-600 mb-2">
+                전설의 공간지각 마스터!
+            </h2>
+            <p id="rank-comment" class="text-slate-600 mb-6 text-sm sm:text-base">
+                위, 앞, 옆에서 본 모양을 완벽하게 머릿속으로 조립해냈어요!
+            </p>
+
+            <!-- 결과 요약 스탯 -->
+            <div class="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
+                <div class="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
+                    <div class="text-xs font-bold text-blue-600 mb-1">최종 점수</div>
+                    <div class="font-jua text-2xl sm:text-3xl text-slate-800"><span id="final-score">0</span>점</div>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
+                    <div class="text-xs font-bold text-emerald-600 mb-1">정답 개수</div>
+                    <div class="font-jua text-2xl sm:text-3xl text-slate-800"><span id="final-correct">0</span> / 10</div>
+                </div>
+                <div class="bg-amber-50 border border-amber-100 p-4 rounded-2xl">
+                    <div class="text-xs font-bold text-amber-600 mb-1">평균 풀이 시간</div>
+                    <div class="font-jua text-2xl sm:text-3xl text-slate-800"><span id="final-avg-time">0.0</span>초</div>
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="w-full sm:w-auto px-10 py-4 bg-blue-600 hover:bg-blue-700 text-white font-jua text-2xl rounded-2xl shadow-lg shadow-blue-200 transition transform hover:-translate-y-0.5 cursor-pointer">
+                다시 도전하기 🔄
+            </button>
+        </section>
+
+    </main>
+
+    <script>
+        /**
+         * 쌓기나무 탐험대 - 게임 로직 및 3D 등각투영(Isometric) 렌더러
+         * 
+         * 좌표계 정의 (3x3 밑면 기준):
+         * - grid[r][c] : r은 행(0: 뒤쪽, 2: 앞쪽), c는 열(0: 왼쪽, 2: 오른쪽)
+         * - 값(h)은 해당 칸에 쌓인 쌓기나무의 개수(0 ~ 3층)
+         * 
+         * 투영 규칙 (초등학교 6학년 수학 교과서 기준):
+         * 1. 위에서 본 모양 (Top): grid[r][c] > 0 이면 색칠. (r=0이 위쪽, r=2가 아래쪽='앞')
+         * 2. 앞에서 본 모양 (Front): 각 열 c(0~2)별 최대 높이 max(grid[0..2][c]). 아래층부터 채움.
+         * 3. 옆(오른쪽)에서 본 모양 (Right Side):
+         *    오른쪽에서 바라보면 왼쪽에 '앞(r=2)', 가운데에 '중간(r=1)', 오른쪽에 '뒤(r=0)'가 위치함!
+         *    즉, 시선 기준 왼쪽 열부터 r=2, r=1, r=0 순으로 각 행의 최대 높이를 표시.
+         */
+
+        const TOTAL_QUESTIONS = 10;
+        const BASE_SCORE = 100;
+        const MAX_BONUS = 50;
+        const BONUS_TIME_LIMIT = 15.0; // 15초 이내 정답 시 시간 비례 보너스 지급
+
+        let gameState = {
+            currentQuestion: 0,
+            score: 0,
+            correctCount: 0,
+            totalTimeSpent: 0,
+            questionStartTime: 0,
+            timerInterval: null,
+            isAnswered: false,
+            questions: [],
+            currentOptions: [],
+            correctOptionIndex: 0
+        };
+
+        // 오디오 효과 (Web Audio API 사용 - 외부 파일 없이 깔끔한 효과음 생성)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+                if (type === 'correct') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now); // 도
+                    osc.frequency.setValueAtTime(659.25, now + 0.1); // 미
+                    osc.frequency.setValueAtTime(783.99, now + 0.2); // 솔
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+                    osc.start(now);
+                    osc.stop(now + 0.45);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.linearRampToValueAtTime(160, now + 0.3);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                }
+            } catch (e) {
+                // 오디오 차단 환경 무시
+            }
+        }
+
+        // 2D 투영 데이터 계산 함수
+        function getProjections(grid) {
+            // 1. 위에서 본 모양 (3x3 boolean)
+            const top = grid.map(row => row.map(h => h > 0));
+
+            // 2. 앞에서 본 모양 (열 c = 0, 1, 2)
+            const frontHeights = [0, 1, 2].map(c => Math.max(grid[0][c], grid[1][c], grid[2][c]));
+
+            // 3. 옆(오른쪽)에서 본 모양 (오른쪽에서 볼 때 왼쪽부터 앞(r=2), 중간(r=1), 뒤(r=0))
+            const sideRowsOrder = [2, 1, 0];
+            const sideHeights = sideRowsOrder.map(r => Math.max(grid[r][0], grid[r][1], grid[r][2]));
+
+            return { top, frontHeights, sideHeights };
+        }
+
+        // 두 투영도가 완전히 동일한지 엄격하게 비교 (유일해 검증용)
+        function isSameProjection(gridA, gridB) {
+            const pA = getProjections(gridA);
+            const pB = getProjections(gridB);
+
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    if (pA.top[r][c] !== pB.top[r][c]) return false;
+                }
+            }
+            for (let i = 0; i < 3; i++) {
+                if (pA.frontHeights[i] !== pB.frontHeights[i]) return false;
+                if (pA.sideHeights[i] !== pB.sideHeights[i]) return false;
+            }
+            return true;
+        }
+
+        // 오답 보기가 정답과 어느 방향 투영도에서 다른지 분석하여 학생용 맞춤 힌트 반환
+        function getDifferenceHint(targetGrid, wrongGrid) {
+            const pT = getProjections(targetGrid);
+            const pW = getProjections(wrongGrid);
+            const diffs = [];
+
+            let topDiff = false;
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    if (pT.top[r][c] !== pW.top[r][c]) topDiff = true;
+                }
+            }
+            if (topDiff) diffs.push("'위'");
+
+            if (pT.frontHeights.some((h, i) => h !== pW.frontHeights[i])) {
+                diffs.push("'앞'");
+            }
+            if (pT.sideHeights.some((h, i) => h !== pW.sideHeights[i])) {
+                diffs.push("'옆(오른쪽)'");
+            }
+
+            if (diffs.length > 0) {
+                return `선택한 모양은 ${diffs.join(', ')}에서 본 모양이 문제와 달라요!`;
+            }
+            return "위·앞·옆 방향에서 각 줄의 가장 높은 층수를 다시 비교해 보세요!";
+        }
+
+        // 두 그리드 자체가 완전히 같은지 비교
+        function isSameGrid(gridA, gridB) {
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    if (gridA[r][c] !== gridB[r][c]) return false;
+                }
+            }
+            return true;
+        }
+
+        // 3D 등각투영(Isometric) 시점에서 뒤에 완전히 가려져 보이지 않는 블록이 있는지 검사
+        // (초등학생이 눈으로 보고 개수를 셀 수 있도록 가려진 사각지대 최소화)
+        function hasHiddenBlock(grid) {
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    const h = grid[r][c];
+                    if (h > 0) {
+                        // 등각투영에서 (r, c, z)의 앞쪽 대각선 방향은 (r+1, c+1, z+1)
+                        if (r + 1 < 3 && c + 1 < 3 && grid[r + 1][c + 1] >= h + 1) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // 문제 난이도에 맞는 쌓기나무 구조 생성기
+        function generateTargetGrid(questionIndex) {
+            // 문제 번호에 따라 블록 수(4~9개)와 층수 점진적 조절
+            let minBlocks = 4, maxBlocks = 6, maxHeight = 2;
+            if (questionIndex >= 3 && questionIndex < 7) {
+                minBlocks = 5; maxBlocks = 8, maxHeight = 3;
+            } else if (questionIndex >= 7) {
+                minBlocks = 6; maxBlocks = 9; maxHeight = 3;
+            }
+
+            for (let attempt = 0; attempt < 150; attempt++) {
+                const grid = [
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 0]
+                ];
+
+                // 1층 바닥 배치 (연결된 형태 권장, 3~5칸)
+                const baseCellsCount = Math.floor(Math.random() * 3) + 3;
+                let r = Math.floor(Math.random() * 3);
+                let c = Math.floor(Math.random() * 3);
+                grid[r][c] = 1;
+                let placed = 1;
+
+                while (placed < baseCellsCount) {
+                    const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+                    const [dr, dc] = dirs[Math.floor(Math.random() * dirs.length)];
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+                        r = nr; c = nc;
+                        if (grid[r][c] === 0) {
+                            grid[r][c] = 1;
+                            placed++;
+                        }
+                    }
+                }
+
+                // 2~3층 쌓기
+                const targetTotal = Math.floor(Math.random() * (maxBlocks - minBlocks + 1)) + minBlocks;
+                let total = placed;
+                let safety = 0;
+                while (total < targetTotal && safety < 60) {
+                    safety++;
+                    const rr = Math.floor(Math.random() * 3);
+                    const cc = Math.floor(Math.random() * 3);
+                    if (grid[rr][cc] > 0 && grid[rr][cc] < maxHeight) {
+                        grid[rr][cc]++;
+                        total++;
+                    }
+                }
+
+                // 최소한 2층 이상이 1개는 있고, 가려진 블록이 없어야 함
+                const actualMax = Math.max(...grid.flat());
+                if (actualMax >= 2 && !hasHiddenBlock(grid)) {
+                    return grid;
+                }
+            }
+
+            // 폴백 기본 구조
+            return [
+                [2, 1, 0],
+                [1, 1, 0],
+                [0, 1, 1]
+            ];
+        }
+
+        // 정답과 헷갈리면서도 (위, 앞, 옆) 투영도가 절대 겹치지 않는 유일해 오답 3개 생성
+        function generateDistractors(targetGrid) {
+            const distractors = [];
+            const allGrids = [targetGrid];
+
+            const isValidDistractor = (cand) => {
+                const sum = cand.flat().reduce((a, b) => a + b, 0);
+                if (sum < 3 || sum > 12 || hasHiddenBlock(cand)) return false;
+                // 기존 모든 보기(정답 + 이미 뽑힌 오답)와 3D 모양이 달라야 함
+                if (allGrids.some(g => isSameGrid(g, cand))) return false;
+                // 핵심: 정답과 (위, 앞, 옆) 투영도가 하나라도 반드시 달라야 유일해 성립!
+                if (isSameProjection(targetGrid, cand)) return false;
+                return true;
+            };
+
+            // 1단계: 교육적으로 헷갈리기 좋은 변형 후보 생성 (반전, 회전, 높이 1층 변경, 칸 이동)
+            for (let attempt = 0; attempt < 500 && distractors.length < 3; attempt++) {
+                const cand = targetGrid.map(row => [...row]);
+                const mutationType = attempt % 5;
+
+                if (mutationType === 0) {
+                    // 좌우 반전 또는 앞뒤 반전 (앞/옆 방향 헷갈림 유도)
+                    if (Math.random() < 0.5) {
+                        cand.forEach(row => row.reverse());
+                    } else {
+                        cand.reverse();
+                    }
+                } else if (mutationType === 1) {
+                    // 90도 또는 270도 회전
+                    const rotated = [[0,0,0],[0,0,0],[0,0,0]];
+                    for (let r = 0; r < 3; r++) {
+                        for (let c = 0; c < 3; c++) {
+                            rotated[c][2 - r] = cand[r][c];
+                        }
+                    }
+                    for (let r = 0; r < 3; r++) cand[r] = rotated[r];
+                } else if (mutationType === 2) {
+                    // 한 칸의 높이를 +1 또는 -1 변경
+                    const r = Math.floor(Math.random() * 3);
+                    const c = Math.floor(Math.random() * 3);
+                    if (cand[r][c] > 0) {
+                        cand[r][c] = cand[r][c] >= 2 ? cand[r][c] - 1 : 2;
+                    } else {
+                        cand[r][c] = 1;
+                    }
+                } else if (mutationType === 3) {
+                    // 1층 블록 하나를 인접한 빈칸으로 이동 (위에서 본 모양 변화)
+                    const filledCells = [];
+                    const emptyCells = [];
+                    for (let r = 0; r < 3; r++) {
+                        for (let c = 0; c < 3; c++) {
+                            if (cand[r][c] === 1) filledCells.push([r, c]);
+                            else if (cand[r][c] === 0) emptyCells.push([r, c]);
+                        }
+                    }
+                    if (filledCells.length > 0 && emptyCells.length > 0) {
+                        const [fr, fc] = filledCells[Math.floor(Math.random() * filledCells.length)];
+                        const [er, ec] = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                        cand[fr][fc] = 0;
+                        cand[er][ec] = 1;
+                    }
+                } else {
+                    // 두 칸의 높이 교환
+                    const r1 = Math.floor(Math.random() * 3), c1 = Math.floor(Math.random() * 3);
+                    const r2 = Math.floor(Math.random() * 3), c2 = Math.floor(Math.random() * 3);
+                    const tmp = cand[r1][c1];
+                    cand[r1][c1] = cand[r2][c2];
+                    cand[r2][c2] = tmp;
+                }
+
+                if (isValidDistractor(cand)) {
+                    distractors.push(cand);
+                    allGrids.push(cand);
+                }
+            }
+
+            // 2단계: 만약 3개를 다 못 채웠다면 새로운 무작위 구조를 생성하여 엄격 검증 후 채움
+            let safety = 0;
+            while (distractors.length < 3 && safety < 200) {
+                safety++;
+                const randomCand = generateTargetGrid(5);
+                if (isValidDistractor(randomCand)) {
+                    distractors.push(randomCand);
+                    allGrids.push(randomCand);
+                }
+            }
+
+            return distractors;
+        }
+
+        // 2D 투영도 HTML 렌더링
+        function render2DProjections(grid) {
+            const { top, frontHeights, sideHeights } = getProjections(grid);
+
+            // 1. 위에서 본 모양 (3x3)
+            const topEl = document.getElementById('grid-top');
+            topEl.innerHTML = '';
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = `proj-cell rounded-sm border border-slate-400/50 ${
+                        top[r][c] ? 'bg-sky-500 shadow-inner' : 'bg-white'
+                    }`;
+                    topEl.appendChild(cell);
+                }
+            }
+
+            // 2. 앞에서 본 모양 (3층 x 3열, 위행 r=2가 가장 위층(3층), 아래행 r=0이 1층)
+            const frontEl = document.getElementById('grid-front');
+            frontEl.innerHTML = '';
+            for (let floor = 3; floor >= 1; floor--) {
+                for (let c = 0; c < 3; c++) {
+                    const filled = frontHeights[c] >= floor;
+                    const cell = document.createElement('div');
+                    cell.className = `proj-cell rounded-sm border border-slate-400/50 ${
+                        filled ? 'bg-indigo-500 shadow-inner' : 'bg-white'
+                    }`;
+                    frontEl.appendChild(cell);
+                }
+            }
+
+            // 3. 옆(오른쪽)에서 본 모양 (3층 x 3열)
+            const sideEl = document.getElementById('grid-side');
+            sideEl.innerHTML = '';
+            for (let floor = 3; floor >= 1; floor--) {
+                for (let col = 0; col < 3; col++) {
+                    const filled = sideHeights[col] >= floor;
+                    const cell = document.createElement('div');
+                    cell.className = `proj-cell rounded-sm border border-slate-400/50 ${
+                        filled ? 'bg-teal-500 shadow-inner' : 'bg-white'
+                    }`;
+                    sideEl.appendChild(cell);
+                }
+            }
+        }
+
+        // 3D 등각투영(Isometric) 쌓기나무 그리기 (Canvas)
+        function drawIsometricBlocks(canvas, grid) {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            const width = rect.width || 220;
+            const height = rect.height || 180;
+
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            ctx.clearRect(0, 0, width, height);
+
+            // 블록 크기 동적 계산
+            const tileW = Math.min(width / 3.8, height / 3.4);
+            const tileH = tileW * 0.54;
+            const blockH = tileW * 0.62;
+
+            // 중앙 정렬 오프셋 (3x3 바닥판 + 3층 높이 고려)
+            const originX = width / 2;
+            const originY = height * 0.36;
+
+            // 3x3 바닥 격자 가이드 먼저 그리기 (공간 위치 파악에 큰 도움!)
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    const isoX = originX + (c - r) * (tileW / 2);
+                    const isoY = originY + (c + r) * (tileH / 2);
+
+                    ctx.beginPath();
+                    ctx.moveTo(isoX, isoY);
+                    ctx.lineTo(isoX + tileW / 2, isoY + tileH / 2);
+                    ctx.lineTo(isoX, isoY + tileH);
+                    ctx.lineTo(isoX - tileW / 2, isoY + tileH / 2);
+                    ctx.closePath();
+
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fill();
+                    ctx.strokeStyle = '#cbd5e1';
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                }
+            }
+
+            // 뒤에서 앞으로(r: 0->2, c: 0->2), 아래에서 위로(z: 0->h-1) 화가 알고리즘(Painter's Algorithm)으로 렌더링
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    const h = grid[r][c];
+                    for (let z = 0; z < h; z++) {
+                        drawSingleCube(ctx, originX, originY, r, c, z, tileW, tileH, blockH);
+                    }
+                }
+            }
+
+            // '앞 (Front)' 방향 화살표 및 라벨 안내 (좌측 하단 모서리)
+            const frontLabelX = originX - tileW * 1.15;
+            const frontLabelY = originY + tileH * 2.45;
+            ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+            ctx.fillStyle = '#e11d48';
+            ctx.textAlign = 'center';
+            ctx.fillText('앞 (Front) ↗', frontLabelX, frontLabelY);
+
+            // '옆 (Right)' 방향 화살표 및 라벨 안내 (우측 하단 모서리)
+            const sideLabelX = originX + tileW * 1.15;
+            const sideLabelY = originY + tileH * 2.45;
+            ctx.fillStyle = '#0d9488';
+            ctx.fillText('↖ 옆 (Right)', sideLabelX, sideLabelY);
+        }
+
+        // 단일 정육면체(쌓기나무 1개) 그리기
+        function drawSingleCube(ctx, originX, originY, r, c, z, tileW, tileH, blockH) {
+            const x = originX + (c - r) * (tileW / 2);
+            const y = originY + (c + r) * (tileH / 2) - z * blockH;
+
+            // 따뜻한 원목/교구 느낌의 입체 색상 팔레트 (명암 대비 뚜렷하게)
+            const topColor = '#fde047';   // 밝은 노랑 (윗면)
+            const leftColor = '#facc15';  // 중간 노랑 (앞쪽-왼쪽 면)
+            const rightColor = '#eab308'; // 진한 골드 (옆쪽-오른쪽 면)
+            const strokeColor = '#713f12'; // 진한 갈색 테두리
+
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = strokeColor;
+
+            // 1. 윗면 (Top Face)
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + tileW / 2, y + tileH / 2);
+            ctx.lineTo(x, y + tileH);
+            ctx.lineTo(x - tileW / 2, y + tileH / 2);
+            ctx.closePath();
+            ctx.fillStyle = topColor;
+            ctx.fill();
+            ctx.stroke();
+
+            // 2. 앞-왼쪽면 (Front-Left Face)
+            ctx.beginPath();
+            ctx.moveTo(x - tileW / 2, y + tileH / 2);
+            ctx.lineTo(x, y + tileH);
+            ctx.lineTo(x, y + tileH + blockH);
+            ctx.lineTo(x - tileW / 2, y + tileH / 2 + blockH);
+            ctx.closePath();
+            ctx.fillStyle = leftColor;
+            ctx.fill();
+            ctx.stroke();
+
+            // 3. 옆-오른쪽면 (Side-Right Face)
+            ctx.beginPath();
+            ctx.moveTo(x, y + tileH);
+            ctx.lineTo(x + tileW / 2, y + tileH / 2);
+            ctx.lineTo(x + tileW / 2, y + tileH / 2 + blockH);
+            ctx.lineTo(x, y + tileH + blockH);
+            ctx.closePath();
+            ctx.fillStyle = rightColor;
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // 게임 시작 초기화
+        function startGame() {
+            playSound('click');
+            gameState = {
+                currentQuestion: 0,
+                score: 0,
+                correctCount: 0,
+                totalTimeSpent: 0,
+                questionStartTime: 0,
+                timerInterval: null,
+                isAnswered: false,
+                questions: [],
+                currentOptions: [],
+                correctOptionIndex: 0
+            };
+
+            // 10문제 미리 생성 (중복 방지)
+            for (let i = 0; i < TOTAL_QUESTIONS; i++) {
+                let target = generateTargetGrid(i);
+                while (gameState.questions.some(q => isSameGrid(q.target, target))) {
+                    target = generateTargetGrid(i);
+                }
+                const distractors = generateDistractors(target);
+                gameState.questions.push({ target, distractors });
+            }
+
+            document.getElementById('score-display').textContent = '0';
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.add('hidden');
+            document.getElementById('game-header').classList.remove('hidden');
+            document.getElementById('play-screen').classList.remove('hidden');
+
+            loadQuestion();
+        }
+
+        // 현재 문제 화면 로드 및 4개 보기 렌더링
+        function loadQuestion() {
+            gameState.isAnswered = false;
+            const qIndex = gameState.currentQuestion;
+            const qData = gameState.questions[qIndex];
+
+            document.getElementById('current-q-num').textContent = qIndex + 1;
+            document.getElementById('feedback-panel').classList.add('hidden');
+
+            // 2D 투영도 렌더링 (위, 앞, 옆)
+            render2DProjections(qData.target);
+
+            // 4개 보기 섞기 (Fisher-Yates 셔플)
+            const options = [
+                { grid: qData.target, isCorrect: true },
+                ...qData.distractors.map(g => ({ grid: g, isCorrect: false }))
+            ];
+            for (let i = options.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [options[i], options[j]] = [options[j], options[i]];
+            }
+
+            gameState.currentOptions = options;
+            gameState.correctOptionIndex = options.findIndex(o => o.isCorrect === true);
+
+            // 버튼 상태 초기화 및 3D 캔버스 렌더링
+            options.forEach((opt, idx) => {
+                const btn = document.getElementById(`choice-btn-${idx}`);
+                const badge = document.getElementById(`badge-${idx}`);
+                btn.disabled = false;
+                btn.setAttribute('data-correct', opt.isCorrect ? 'true' : 'false');
+                btn.className = 'choice-card relative bg-white rounded-3xl border-2 border-slate-200 p-3 flex flex-col items-center justify-between cursor-pointer overflow-hidden shadow-sm';
+                badge.classList.add('hidden');
+
+                const canvas = document.getElementById(`canvas-${idx}`);
+                drawIsometricBlocks(canvas, opt.grid);
+            });
+
+            // 타이머 시작
+            startQuestionTimer();
+        }
+
+        // 문제별 타이머 및 보너스 게이지 작동 (3초 이내 최대 +50점, 이후 초당 감소하여 15초 이후 0점)
+        function calculateSpeedBonus(elapsedSeconds) {
+            if (elapsedSeconds <= 3.0) return MAX_BONUS;
+            if (elapsedSeconds >= BONUS_TIME_LIMIT) return 0;
+            const ratio = 1 - (elapsedSeconds - 3.0) / (BONUS_TIME_LIMIT - 3.0);
+            return Math.max(0, Math.round(MAX_BONUS * ratio));
+        }
+
+        function startQuestionTimer() {
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+            gameState.questionStartTime = performance.now();
+
+            const timerBar = document.getElementById('timer-bar');
+            const bonusText = document.getElementById('bonus-indicator');
+            timerBar.style.width = '100%';
+            bonusText.textContent = `+${MAX_BONUS}점 가능!`;
+
+            gameState.timerInterval = setInterval(() => {
+                if (gameState.isAnswered) return;
+                const elapsed = (performance.now() - gameState.questionStartTime) / 1000;
+                const remainingRatio = Math.max(0, 1 - elapsed / BONUS_TIME_LIMIT);
+                const currentBonus = calculateSpeedBonus(elapsed);
+
+                timerBar.style.width = `${remainingRatio * 100}%`;
+                if (currentBonus > 0) {
+                    bonusText.textContent = `+${currentBonus}점 보너스`;
+                    bonusText.className = 'text-amber-600 font-bold';
+                } else {
+                    bonusText.textContent = '기본 100점';
+                    bonusText.className = 'text-slate-400 font-medium';
+                }
+            }, 80);
+        }
+
+        // 학생이 보기를 선택했을 때 처리
+        function selectAnswer(selectedIndex) {
+            if (gameState.isAnswered) return;
+            const selectedOption = gameState.currentOptions[selectedIndex];
+            if (!selectedOption) return;
+
+            gameState.isAnswered = true;
+            clearInterval(gameState.timerInterval);
+
+            const elapsed = (performance.now() - gameState.questionStartTime) / 1000;
+            gameState.totalTimeSpent += elapsed;
+
+            // 엄격한 정답 판별: 선택한 옵션 객체의 isCorrect 및 인덱스 일치 여부 동시 확인
+            const isCorrect = Boolean(selectedOption.isCorrect === true && selectedIndex === gameState.correctOptionIndex);
+            const timeBonus = isCorrect ? calculateSpeedBonus(elapsed) : 0;
+            const earnedPoints = isCorrect ? BASE_SCORE + timeBonus : 0;
+
+            if (isCorrect) {
+                playSound('correct');
+                gameState.score += earnedPoints;
+                gameState.correctCount++;
+                document.getElementById('score-display').textContent = gameState.score;
+            } else {
+                playSound('wrong');
+            }
+
+            // 모든 버튼 비활성화 및 정답/오답 시각적 표시
+            for (let i = 0; i < 4; i++) {
+                const btn = document.getElementById(`choice-btn-${i}`);
+                const badge = document.getElementById(`badge-${i}`);
+                btn.disabled = true;
+
+                if (i === gameState.correctOptionIndex) {
+                    btn.className = 'relative bg-emerald-50 rounded-3xl border-4 border-emerald-500 p-3 flex flex-col items-center justify-between overflow-hidden shadow-md';
+                    badge.textContent = '정답 ⭕';
+                    badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500 text-white';
+                } else if (i === selectedIndex && !isCorrect) {
+                    btn.className = 'animate-shake relative bg-rose-50 rounded-3xl border-4 border-rose-500 p-3 flex flex-col items-center justify-between overflow-hidden';
+                    badge.textContent = '내 선택 ❌';
+                    badge.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-rose-500 text-white';
+                } else {
+                    btn.className = 'relative bg-slate-50 rounded-3xl border-2 border-slate-200 p-3 flex flex-col items-center justify-between overflow-hidden opacity-50';
+                }
+            }
+
+            // 하단 피드백 패널 표시
+            const fbPanel = document.getElementById('feedback-panel');
+            const fbIcon = document.getElementById('feedback-icon');
+            const fbTitle = document.getElementById('feedback-title');
+            const fbDesc = document.getElementById('feedback-desc');
+            const nextBtn = document.getElementById('next-btn');
+
+            fbPanel.classList.remove('hidden');
+            if (isCorrect) {
+                fbPanel.className = 'mt-4 bg-emerald-50 rounded-2xl border-2 border-emerald-300 p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 animate-pop';
+                fbIcon.className = 'w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-jua text-3xl shrink-0';
+                fbIcon.textContent = '⭕';
+                fbTitle.className = 'font-jua text-xl text-emerald-800';
+                fbTitle.textContent = `정답입니다! (+${earnedPoints}점)`;
+                fbDesc.textContent = `${elapsed.toFixed(1)}초 만에 해결! 기본 ${BASE_SCORE}점 + 스피드 보너스 ${timeBonus}점`;
+            } else {
+                const targetGrid = gameState.questions[gameState.currentQuestion].target;
+                const hintMsg = getDifferenceHint(targetGrid, selectedOption.grid);
+                fbPanel.className = 'mt-4 bg-rose-50 rounded-2xl border-2 border-rose-300 p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 animate-pop';
+                fbIcon.className = 'w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center font-jua text-3xl shrink-0';
+                fbIcon.textContent = '❌';
+                fbTitle.className = 'font-jua text-xl text-rose-800';
+                fbTitle.textContent = `아쉬워요! 다시 생각해봐요 (정답: ${gameState.correctOptionIndex + 1}번)`;
+                fbDesc.textContent = hintMsg;
+            }
+
+            nextBtn.textContent = gameState.currentQuestion === TOTAL_QUESTIONS - 1 ? '최종 결과 보기 🏆' : '다음 문제 ➔';
+        }
+
+        // 다음 문제 이동 또는 결과 화면 표시
+        function nextQuestion() {
+            playSound('click');
+            gameState.currentQuestion++;
+            if (gameState.currentQuestion < TOTAL_QUESTIONS) {
+                loadQuestion();
+            } else {
+                showFinalResults();
+            }
+        }
+
+        // 최종 결과 화면 렌더링
+        function showFinalResults() {
+            document.getElementById('game-header').classList.add('hidden');
+            document.getElementById('play-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('hidden');
+
+            const avgTime = (gameState.totalTimeSpent / TOTAL_QUESTIONS).toFixed(1);
+            document.getElementById('final-score').textContent = gameState.score;
+            document.getElementById('final-correct').textContent = gameState.correctCount;
+            document.getElementById('final-avg-time').textContent = avgTime;
+
+            // 점수 및 정답률에 따른 칭찬 등급 부여
+            const emojiEl = document.getElementById('rank-emoji');
+            const titleEl = document.getElementById('rank-title');
+            const commentEl = document.getElementById('rank-comment');
+
+            if (gameState.correctCount === 10 && gameState.score >= 1300) {
+                emojiEl.textContent = '👑';
+                titleEl.textContent = '전설의 공간지각 마스터!';
+                commentEl.textContent = '단 하나의 실수도 없이 빛의 속도로 모든 쌓기나무를 맞혔어요! 정말 대단해요!';
+            } else if (gameState.correctCount >= 8) {
+                emojiEl.textContent = '🎓';
+                titleEl.textContent = '척척박사 쌓기나무 명탐정!';
+                commentEl.textContent = '위, 앞, 옆에서 본 모양을 입체로 떠올리는 능력이 아주 뛰어나요!';
+            } else if (gameState.correctCount >= 5) {
+                emojiEl.textContent = '🌟';
+                titleEl.textContent = '성실한 입체도형 탐험가!';
+                commentEl.textContent = '잘 해냈어요! 한 번 더 도전해서 10문제 만점에 도전해 볼까요?';
+            } else {
+                emojiEl.textContent = '🌱';
+                titleEl.textContent = '새싹 공간 디자이너!';
+                commentEl.textContent = '방향 화살표(앞, 옆)를 기준으로 한 칸씩 차근차근 세어보면 훨씬 쉬워질 거예요!';
+            }
+        }
+
+        // 화면 크기 변경 시 3D 캔버스 선명도 유지 리사이징
+        window.addEventListener('resize', () => {
+            if (!document.getElementById('play-screen').classList.contains('hidden') && gameState.currentOptions.length === 4) {
+                gameState.currentOptions.forEach((opt, idx) => {
+                    const canvas = document.getElementById(`canvas-${idx}`);
+                    drawIsometricBlocks(canvas, opt.grid);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
